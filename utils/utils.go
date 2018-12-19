@@ -26,14 +26,17 @@ func ConvertSwaggerToPostman(bytes []byte) ([]byte, error) {
 	items := []models.Item{}
 
 	result.GetObject("paths").Visit(func(k []byte, v *fastjson.Value) {
-		items = append(items, convertRequest(v, result))
+		endpoint := string(k)
+		items = append(items, convertRequest(v, endpoint, result))
 	})
 
 	return json.Marshal(postman)
 }
 
-func convertRequest(value *fastjson.Value, all *fastjson.Value) models.Item {
+func convertRequest(value *fastjson.Value, endpoint string, all *fastjson.Value) models.Item {
 	item := models.Item{}
+
+	index := 0
 
 	value.GetObject().Visit(func(k []byte, v *fastjson.Value) {
 		itemin := models.ItemIn{}
@@ -42,10 +45,22 @@ func convertRequest(value *fastjson.Value, all *fastjson.Value) models.Item {
 		itemin.Request.Method = method
 		itemin.Request.Description = removeScape(v.Get("description").String())
 		itemin.Name = removeScape(v.Get("summary").String())
+		path := &itemin.Request.URL.Path
+		*path = make([]string, 5)
+
+		(*path)[index] = endpoint
 
 		if is(method, GET) {
 			h, q := convertParameters(value.Get("get").Get("parameters"))
 			itemin.Request.Header = h
+
+			i := 0
+
+			if len(*path) > 0 {
+				i = len(*path) - 1
+			}
+
+			(*path)[i] += q
 		} else if is(method, POST) {
 
 			rest := v.Get("requestBody").Get("content").Get("application/json").Get("schema").Get("$ref").String()
@@ -56,7 +71,9 @@ func convertRequest(value *fastjson.Value, all *fastjson.Value) models.Item {
 
 			itemin.Request.Body = ret
 		}
+
 		item.Item = append(item.Item, itemin)
+		index++
 	})
 
 	return item
@@ -81,9 +98,9 @@ func recursiveGet(value *fastjson.Value, path []string) *fastjson.Value {
 
 func convertParameters(value *fastjson.Value) ([]models.Header, string) {
 	headers := []models.Header{}
-	parameters := "?"
+	parameters := []string{}
 
-	for k, v := range value.GetArray() {
+	for _, v := range value.GetArray() {
 		in := removeScape(v.Get("in").String())
 		name := removeScape(v.Get("name").String())
 
@@ -92,15 +109,24 @@ func convertParameters(value *fastjson.Value) ([]models.Header, string) {
 				Key: name,
 			})
 		} else if in == "query" {
-			if k >= len(value.GetArray()) {
-				parameters += name
+			parameters = append(parameters, name)
+		}
+	}
+
+	toReturn := ""
+
+	if len(parameters) > 0 {
+		toReturn = "?"
+		for k, v := range parameters {
+			if k == 0 {
+				toReturn += v + "="
 			} else {
-				parameters += name + "=&"
+				toReturn += "&" + v + "="
 			}
 		}
 	}
 
-	return headers, parameters
+	return headers, toReturn
 }
 
 func convertToInterfaceBody(value *fastjson.Value) map[string]interface{} {

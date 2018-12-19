@@ -24,27 +24,27 @@ type Header struct {
 }
 
 type Request struct {
-	Method string `json:"method"`
-	Header []Header `json:"header"`
-	Body Body `json:"body"`
-	URL Url `json:"url"`
-	Description string `json:"description"`
+	Method      string   `json:"method"`
+	Header      []Header `json:"header"`
+	Body        Body     `json:"body"`
+	URL         Url      `json:"url"`
+	Description string   `json:"description"`
 }
 
 type ItemIn struct {
-	Name    string `json:"name"`
-	Request Request `json:"request"`
+	Name     string     `json:"name"`
+	Request  Request    `json:"request"`
 	Response []Response `json:"response"`
 }
 
 type Item struct {
-	Name string `json:"name"`
-	Item []ItemIn `json:"item"`
-	Description string `json:"description"`
+	Name        string   `json:"name"`
+	Item        []ItemIn `json:"item"`
+	Description string   `json:"description"`
 }
 
 type Postman struct {
-	Info Info `json:"info"`
+	Info Info   `json:"info"`
 	Item []Item `json:"item"`
 }
 
@@ -52,4 +52,3 @@ type Response struct {
 	Body string
 	Code int
 }
-
