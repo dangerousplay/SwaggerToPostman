@@ -25,8 +25,8 @@ type Header struct {
 
 type Request struct {
 	Method      string   `json:"method"`
-	Header      []Header `json:"header"`
-	Body        Body     `json:"body"`
+	Header      []Header `json:"header,omitempty"`
+	Body        Body     `json:"body,omitempty"`
 	URL         Url      `json:"url"`
 	Description string   `json:"description"`
 }

@@ -19,22 +19,33 @@ func ConvertSwaggerToPostman(bytes []byte) ([]byte, error) {
 		Info: models.Info{
 			Name:        info.Get("title").String(),
 			Description: info.Get("description").String(),
-			Schema:      "https://schema.getpostman.com/collection/v2",
+			Schema:      "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
 		},
 	}
 
-	items := []models.Item{}
+	items := []models.Item{
+		{Name: "api"},
+	}
+
+	itemsIn := []models.ItemIn{}
 
 	result.GetObject("paths").Visit(func(k []byte, v *fastjson.Value) {
 		endpoint := string(k)
-		items = append(items, convertRequest(v, endpoint, result))
+		for _, v := range convertRequest(v, endpoint, result) {
+			itemsIn = append(itemsIn, v)
+		}
+
 	})
+
+	items[0].Item = itemsIn
+
+	postman.Item = items
 
 	return json.Marshal(postman)
 }
 
-func convertRequest(value *fastjson.Value, endpoint string, all *fastjson.Value) models.Item {
-	item := models.Item{}
+func convertRequest(value *fastjson.Value, endpoint string, all *fastjson.Value) []models.ItemIn {
+	item := []models.ItemIn{}
 
 	index := 0
 
@@ -42,25 +53,28 @@ func convertRequest(value *fastjson.Value, endpoint string, all *fastjson.Value)
 		itemin := models.ItemIn{}
 		method := string(k)
 
-		itemin.Request.Method = method
+		itemin.Request.Method = strings.ToUpper(method)
 		itemin.Request.Description = removeScape(v.Get("description").String())
 		itemin.Name = removeScape(v.Get("summary").String())
-		path := &itemin.Request.URL.Path
-		*path = make([]string, 5)
+		itemin.Request.URL.Raw = "{{hostname}}" + endpoint
 
-		(*path)[index] = endpoint
+		path := &itemin.Request.URL.Path
+
+		*path = []string{}
+
+		for _, v := range strings.Split(endpoint, "/") {
+			if v == "" {
+				continue
+			}
+
+			*path = append(*path, v)
+		}
 
 		if is(method, GET) {
 			h, q := convertParameters(value.Get("get").Get("parameters"))
 			itemin.Request.Header = h
 
-			i := 0
-
-			if len(*path) > 0 {
-				i = len(*path) - 1
-			}
-
-			(*path)[i] += q
+			itemin.Request.URL.Raw += q
 		} else if is(method, POST) {
 
 			rest := v.Get("requestBody").Get("content").Get("application/json").Get("schema").Get("$ref").String()
@@ -72,7 +86,7 @@ func convertRequest(value *fastjson.Value, endpoint string, all *fastjson.Value)
 			itemin.Request.Body = ret
 		}
 
-		item.Item = append(item.Item, itemin)
+		item = append(item, itemin)
 		index++
 	})
 
@@ -140,7 +154,13 @@ func convertToInterfaceBody(value *fastjson.Value) map[string]interface{} {
 			example = removeScape(exampleP.String())
 		}
 
-		typ := removeScape(v.Get("type").String())
+		aType := v.Get("type")
+
+		var typ = ""
+
+		if aType != nil {
+			typ = removeScape(aType.String())
+		}
 
 		if typ == "object" {
 			mapt[string(key)] = convertToInterfaceBody(v)
@@ -160,7 +180,7 @@ func convertBodyPost(value *fastjson.Value) models.Body {
 
 	body := models.Body{}
 
-	body.Mode = "application/json"
+	body.Mode = "raw"
 
 	bytes, err := json.Marshal(mapt)
 
